@@ -1,0 +1,18 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "server.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "server.js"
+    }
+  ],
+  "env": {
+    "BLOB_READ_WRITE_TOKEN": "vercel_blob_rw_WtaEnrRCwDR7iMoj_YFWo03pjwTkF9sOMvTw5D8vmk6R644"
+  }
+}
