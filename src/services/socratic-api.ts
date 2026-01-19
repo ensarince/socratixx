@@ -1,19 +1,30 @@
 /**
  * Socratic API Service
  * Handles all communication with the Socratic Reasoning backend server
+ * Implements principles from arXiv:2409.05511 and MAIKE research
  */
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
 
-// API Response Types
+// ============================================
+// API RESPONSE TYPES & INTERFACES
+// ============================================
+
 export interface SocraticQuestion {
     question: string;
     depth?: number;
 }
 
-export interface SocraticResponse {
+export interface QuestionResponseData {
     question: string;
     depth: number;
+    questionType: string;
+    confidence?: number;
+    consistencyScore?: number;
+    assertionCount?: number;
+    contradictionDetected?: boolean;
+    loopWarning?: string | null;
+    readyForSynthesis?: boolean;
     thoughtProcess: {
         nodes: Array<{
             id: string;
@@ -28,6 +39,8 @@ export interface SocraticResponse {
     };
 }
 
+export interface SocraticResponse extends QuestionResponseData {}
+
 export interface SessionState {
     topic: string | null;
     userAnswers: string[];
@@ -38,6 +51,29 @@ export interface SessionState {
     conversationHistory: ConversationMessage[];
     questionDepth: number;
     currentQuestion: string | null;
+    sessionPhase: 'calibration' | 'progressive' | 'synthesis' | 'conclusion';
+    consistencyScore: number;
+    assertions: Array<{
+        id: string;
+        statement: string;
+        nodeId: string;
+        confidence: number;
+        timestamp: number;
+        foundational: boolean;
+    }>;
+    misconceptions: Array<{
+        id: string;
+        type: 'calculation' | 'logic' | 'fundamental';
+        severity: string;
+        resolved: boolean;
+    }>;
+    baselineKnowledgeLevel: 'beginner' | 'intermediate' | 'advanced' | null;
+    currentPathStep: number;
+    solutionPath: Array<{
+        step: number;
+        name: string;
+        description: string;
+    }>;
 }
 
 interface ThoughtProcessNode {
@@ -58,7 +94,34 @@ export interface ConversationMessage {
     timestamp: number;
 }
 
-// Error handling
+export interface CalibrationData {
+    baselineLevel: 'beginner' | 'intermediate' | 'advanced';
+    firstQuestion: string;
+    nextPhase: string;
+    sessionPhase: string;
+}
+
+export interface SynthesisData {
+    phase: string;
+    message: string;
+    knowledgeGapMap: Array<{
+        step: string;
+        status: 'mastered' | 'current' | 'locked';
+        confidence: number;
+    }>;
+    sessionStats: {
+        totalQuestions: number;
+        consistencyScore: number;
+        assertionCount: number;
+        misconceptionsDetected: number;
+        pathProgressPercentage: number;
+    };
+}
+
+// ============================================
+// ERROR HANDLING
+// ============================================
+
 export class SocraticAPIError extends Error {
     statusCode: number;
     details?: Record<string, unknown>;
@@ -75,7 +138,10 @@ export class SocraticAPIError extends Error {
     }
 }
 
-// Utility function for API calls
+// ============================================
+// UTILITY FUNCTIONS
+// ============================================
+
 async function apiCall<T>(
     endpoint: string,
     method: 'GET' | 'POST' | 'DELETE' = 'GET',
@@ -118,14 +184,37 @@ async function apiCall<T>(
     }
 }
 
-// API Methods
+// ============================================
+// API METHODS
+// ============================================
+
 export const SocraticAPI = {
-    // Session Management
-    async initializeSession(topic: string): Promise<{ message: string; state: SessionState }> {
+    // ========== SESSION MANAGEMENT ==========
+    
+    async initializeSession(topic: string): Promise<{ 
+        message: string; 
+        state: SessionState;
+        calibrationQuestions: string[];
+        sessionPhase: string;
+    }> {
         return apiCall('/session/init', 'POST', { topic });
     },
 
-    async getSessionState(): Promise<SessionState> {
+    async calibrateSession(calibrationResponses: string[]): Promise<CalibrationData> {
+        return apiCall('/session/calibrate', 'POST', { calibrationResponses });
+    },
+
+    async getSessionState(): Promise<SessionState & { sessionSummary: {
+        topic: string;
+        phase: string;
+        questionDepth: number;
+        consistencyScore: number;
+        assertionCount: number;
+        misconceptionCount: number;
+        baselineLevel: string;
+        currentPathStep: number;
+        totalPathSteps: number;
+    }}> {
         return apiCall('/session/state');
     },
 
@@ -133,21 +222,154 @@ export const SocraticAPI = {
         return apiCall('/session/reset', 'POST');
     },
 
-    // Question Generation
+    // ========== QUESTIONING & INTERACTION ==========
+
     async generateInitialQuestion(topic: string): Promise<SocraticQuestion> {
         return apiCall('/question/generate', 'POST', { topic });
     },
 
-    async respondToQuestion(answer: string): Promise<SocraticResponse> {
-        return apiCall('/question/respond', 'POST', { answer });
+    async respondToQuestion(answer: string, confidence: number = 50): Promise<SocraticResponse> {
+        return apiCall('/question/respond', 'POST', { answer, confidence });
     },
 
-    // Visualization Data
-    async getThoughtProcess(): Promise<{ nodes: ThoughtProcessNode[]; connections: ThoughtProcessConnection[] }> {
+    // ========== SCAFFOLDING SUPPORT ==========
+
+    async requestScaffold(currentQuestion: string): Promise<{
+        level: string;
+        levelIndex: number;
+        scaffold: string;
+        message: string;
+    }> {
+        return apiCall('/scaffold/request', 'POST', { currentQuestion });
+    },
+
+    // ========== SYNTHESIS & CONCLUSION ==========
+
+    async generateSynthesisPrompt(): Promise<{
+        phase: string;
+        message: string;
+        synthesisQuestion: string;
+        provenAssertions: Array<{
+            id: string;
+            statement: string;
+            confidence: number;
+        }>;
+    }> {
+        return apiCall('/session/synthesize', 'POST');
+    },
+
+    async evaluateSynthesis(synthesisMemo: string): Promise<SynthesisData> {
+        return apiCall('/session/evaluate-synthesis', 'POST', { synthesisMemo });
+    },
+
+    async generateConfusedQuestions(): Promise<{
+        questions: string[];
+        count: number;
+        sessionContext: {
+            topic: string;
+            assertionCount: number;
+            knowledgeLevel: 'beginner' | 'intermediate' | 'advanced' | null;
+        };
+    }> {
+        return apiCall('/session/generate-confused-questions', 'POST');
+    },
+
+    // ========== VISUALIZATION & DATA ==========
+
+    async getThoughtProcess(): Promise<{
+        nodes: ThoughtProcessNode[];
+        connections: ThoughtProcessConnection[];
+        metadata: {
+            totalNodes: number;
+            totalConnections: number;
+            depth: number;
+        };
+    }> {
         return apiCall('/visualization/thought-process');
     },
 
-    async getConversationHistory(): Promise<ConversationMessage[]> {
+    async getKnowledgeGraph(): Promise<{
+        nodes: Array<{
+            id: string;
+            label: string;
+            description: string;
+            status: 'mastered' | 'current' | 'locked';
+            order: number;
+        }>;
+        provenConcepts: Array<{
+            id: string;
+            label: string;
+            confidence: number;
+        }>;
+    }> {
+        return apiCall('/visualization/knowledge-graph');
+    },
+
+    async getConsistencyScore(): Promise<{
+        score: number;
+        contradictions: number;
+        resolved_contradictions: number;
+        assertions: number;
+        metadata: {
+            maxScore: number;
+            currentPhase: string;
+        };
+    }> {
+        return apiCall('/visualization/consistency-score');
+    },
+
+    async getAssertionLog(): Promise<{
+        assertions: Array<{
+            id: string;
+            statement: string;
+            confidence: number;
+            foundational: boolean;
+        }>;
+        total: number;
+        highConfidence: number;
+        foundational: number;
+    }> {
+        return apiCall('/assertions/log');
+    },
+
+    async getMisconceptions(): Promise<{
+        misconceptions: Array<{
+            id: string;
+            type: 'calculation' | 'logic' | 'fundamental';
+            severity: string;
+            detected_at_depth: number;
+            resolved: boolean;
+        }>;
+        totalDetected: number;
+        byType: {
+            calculation: number;
+            logic: number;
+            fundamental: number;
+        };
+    }> {
+        return apiCall('/misconceptions/detected');
+    },
+
+    async getConversationHistory(): Promise<{
+        history: ConversationMessage[];
+        total: number;
+        phase: string;
+    }> {
         return apiCall('/conversation/history');
+    },
+
+    async getKnowledgeGapMap(): Promise<{
+        map: Array<{
+            step: string;
+            status: 'mastered' | 'current' | 'locked';
+            confidence: number;
+        }>;
+        summary: {
+            areas_mastered: number;
+            areas_in_progress: number;
+            areas_locked: number;
+        };
+    }> {
+        return apiCall('/knowledge-gap-map');
     },
 };
