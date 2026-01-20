@@ -1,5 +1,3 @@
-"use client"
-
 import type React from "react"
 
 import { Focus, Network, StickyNote, GraduationCap } from "lucide-react"

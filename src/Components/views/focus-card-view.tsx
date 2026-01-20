@@ -1,15 +1,16 @@
-"use client"
-
 import type React from "react"
 import { useState } from "react"
+import { motion } from "framer-motion"
 import { Send, Sparkles, HelpCircle, AlertTriangle, BookOpen, Puzzle } from "lucide-react"
 import type { ThoughtNode } from "../socratic-app"
+import { FeedbackHelpers } from "../feedback-helpers"
 
 interface FocusCardViewProps {
   node: ThoughtNode
   onAnswer: (answer: string, confidence: number) => void
   onRequestScaffold: () => void
   calibrationLevel: "beginner" | "intermediate" | "advanced"
+  topic?: string
 }
 
 const typeLabels = {
@@ -43,18 +44,18 @@ const typeLabels = {
     desc: "Reasoning-based probe",
     fullDesc: "Your logic led here—let's examine the contradiction",
   },
-  "resource-based": {
-    label: "Resource-Based",
-    color: "text-cyan-400 bg-cyan-500/20",
-    desc: "Knowledge-based probe",
-    fullDesc: "Think about a related principle you know...",
-  },
   "reflective-toss": {
     label: "Reflective Toss",
     color: "text-teal-400 bg-teal-500/20",
     desc: "Turn it around",
+    fullDesc: "Reflect on what you've learned",
   },
-  root: { label: "Starting Point", color: "text-muted-foreground bg-muted", desc: "Begin your journey" },
+  root: { 
+    label: "Starting Point", 
+    color: "text-muted-foreground bg-muted", 
+    desc: "Begin your journey",
+    fullDesc: "Let's start exploring",
+  },
 }
 
 const scaffoldHints = {
@@ -64,24 +65,78 @@ const scaffoldHints = {
   3: { type: "co-construct", text: "Here's a starting phrase: 'It's basically like when...' — can you complete it?" },
 }
 
-export function FocusCardView({ node, onAnswer, onRequestScaffold, calibrationLevel }: FocusCardViewProps) {
+export function FocusCardView({ node, onAnswer, onRequestScaffold: requestScaffold, calibrationLevel, topic }: FocusCardViewProps) {
   const [answer, setAnswer] = useState("")
   const [confidence, setConfidence] = useState(50)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const typeInfo = typeLabels[node.type as keyof typeof typeLabels] || typeLabels.root
   const scaffoldLevel = node.scaffoldLevel || 0
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (answer.trim()) {
+    if (!answer.trim() || isSubmitting) return
+
+    setIsSubmitting(true)
+
+    try {
+      // Validate topic with server if topic is provided
+      if (topic) {
+        try {
+          const response = await fetch(
+            `${import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api"}/question/validate-topic`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ answer, topic }),
+            }
+          )
+          const validation = await response.json()
+
+          if (!validation.isOnTopic) {
+            FeedbackHelpers.offTopicWarning(
+              validation.reason || `Let's focus on "${topic}" instead.`
+            )
+            setIsSubmitting(false)
+            return // Block submission
+          }
+        } catch (error) {
+          console.error("Topic validation error:", error)
+          // Continue if validation fails
+        }
+      }
+
+      // Emit feedback based on quality
+      const hasLogicalReasoning = answer.includes("because") || 
+                                   answer.includes("therefore") || 
+                                   answer.includes("so") ||
+                                   answer.includes("thus") ||
+                                   answer.includes("implies") ||
+                                   answer.includes("leads to")
+      
+      if (confidence >= 80) {
+        FeedbackHelpers.answerValidated("excellent")
+        // Aha moment: high confidence + logical reasoning + substantial answer
+        if (answer.length > 100 && hasLogicalReasoning) {
+          FeedbackHelpers.ahaMoment(answer.substring(0, 60))
+        }
+      } else if (confidence >= 60) {
+        FeedbackHelpers.answerValidated("solid")
+      } else {
+        FeedbackHelpers.answerValidated("good")
+      }
+
+      // Clear and submit
       onAnswer(answer, confidence)
       setAnswer("")
       setConfidence(50)
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
   const showMisconceptionWarning = confidence > 85
   const isEdgeCaseProbe =
-    node.type === "edge-case" || node.type === "counter-exemplar" || node.type === "resource-based"
+    node.type === "edge-case" || node.type === "counter-exemplar"
 
   return (
     <div className="h-full flex items-center justify-center p-8">
@@ -181,32 +236,40 @@ export function FocusCardView({ node, onAnswer, onRequestScaffold, calibrationLe
               placeholder="Think carefully before you answer..."
               className="w-full h-28 px-5 py-4 bg-secondary border border-border rounded-xl text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:ring-2 focus:ring-primary/50"
             />
-            <button
+            <motion.button
               type="submit"
-              disabled={!answer.trim()}
+              disabled={!answer.trim() || isSubmitting}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
               className="absolute bottom-3 right-3 p-2.5 rounded-lg bg-primary text-primary-foreground disabled:opacity-50 disabled:cursor-not-allowed hover:bg-primary/90 transition-colors"
             >
-              <Send className="w-4 h-4" />
-            </button>
+              {isSubmitting ? (
+                <motion.div
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                  className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full"
+                />
+              ) : (
+                <Send className="w-4 h-4" />
+              )}
+            </motion.button>
           </div>
 
-          <div className="flex items-center justify-between">
-            <button
-              type="button"
-              onClick={onRequestScaffold}
-              disabled={scaffoldLevel >= 3}
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-            >
-              <span className="flex items-center gap-2">
-                <HelpCircle className="w-4 h-4" />
-                {scaffoldLevel === 0 && "Let's build this together"}
-                {scaffoldLevel === 1 && "I need a metaphor"}
-                {scaffoldLevel === 2 && "Help me start the sentence"}
-                {scaffoldLevel >= 3 && "Let's work with what we have"}
-              </span>
-            </button>
-            <p className="text-xs text-muted-foreground">Level: {calibrationLevel}</p>
-          </div>
+          <button
+            type="button"
+            onClick={requestScaffold}
+            disabled={!answer.trim()}
+            className="text-sm text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+          >
+            <span className="flex items-center gap-2">
+              <HelpCircle className="w-4 h-4" />
+              {scaffoldLevel === 0 && "Let's build this together"}
+              {scaffoldLevel === 1 && "I need a metaphor"}
+              {scaffoldLevel === 2 && "Help me start the sentence"}
+              {scaffoldLevel >= 3 && "Let's work with what we have"}
+            </span>
+          </button>
+          <p className="text-xs text-muted-foreground">Level: {calibrationLevel}</p>
         </form>
       </div>
     </div>

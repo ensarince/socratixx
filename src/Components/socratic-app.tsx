@@ -1,5 +1,3 @@
-"use client"
-
 import { useState } from "react"
 import { Sidebar } from "./siderbar"
 import { ViewSwitcher } from "./view-switcher"
@@ -8,6 +6,9 @@ import { InfiniteCanvasView } from "./views/infinite-canvas-view"
 import { FlipModeView } from "./views/flip-mode-view"
 import { CalibrationModal } from "./calibration"
 import { FocusCardView } from "./views/focus-card-view"
+import { FeedbackSystem } from "./feedback-system"
+import { TopicGuard } from "./topic-guard"
+import { FeedbackHelpers } from "./feedback-helpers"
 import { SocraticAPI, SocraticAPIError } from "../services/socratic-api"
 
 export type ViewMode = "focus" | "mindmap" | "canvas" | "flip"
@@ -49,6 +50,7 @@ export function SocraticApp() {
   const [nodes, setNodes] = useState<ThoughtNode[]>([])
   const [currentNodeId, setCurrentNodeId] = useState<string>("")
   const [consistencyScore, setConsistencyScore] = useState(0)
+  const [prevConsistencyScore, setPrevConsistencyScore] = useState(0)
   const [assertions, setAssertions] = useState<Assertion[]>([])
   const [showCalibration, setShowCalibration] = useState(false)
   const [zpdLevel, setZpdLevel] = useState<"easy" | "optimal" | "hard">("optimal")
@@ -121,7 +123,7 @@ export function SocraticApp() {
     
     try {
       // Process answer through backend
-      const response = await SocraticAPI.respondToQuestion(answer)
+      const response = await SocraticAPI.respondToQuestion(answer, confidence)
       
       // Update current node with answer
       setNodes((prev) =>
@@ -175,6 +177,37 @@ export function SocraticApp() {
         ),
         nextNode,
       ])
+
+      setCurrentNodeId(nextNodeId)
+
+      // Update consistency score with feedback
+      const oldScore = consistencyScore
+      const newScore = Math.min(100, consistencyScore + 5)
+      setConsistencyScore(newScore)
+      setPrevConsistencyScore(oldScore)
+
+      // Emit feedback based on consistency milestones
+      if (newScore > oldScore) {
+        if (newScore === 100) {
+          // Perfect consistency = breakthrough/mastery
+          FeedbackHelpers.breakthrough("complete understanding of this topic")
+        } else if (newScore % 10 === 0) {
+          // Milestone feedback every 10%
+          FeedbackHelpers.consistencyGain(oldScore, newScore)
+        }
+      }
+
+      // Emit breakthrough celebration for synthesis-ready state
+      if (response.readyForSynthesis) {
+        FeedbackHelpers.breakthrough("this concept - you're ready for synthesis")
+      }
+
+      // Adjust ZPD based on confidence
+      if (confidence < 40) setZpdLevel("hard")
+      else if (confidence > 85) setZpdLevel("easy")
+      else setZpdLevel("optimal")
+
+      setSession(response.state || session)
 
       setCurrentNodeId(nextNodeId)
 
@@ -331,6 +364,7 @@ export function SocraticApp() {
               onAnswer={handleAnswer}
               onRequestScaffold={requestScaffold}
               calibrationLevel={calibrationLevel}
+              topic={topic}
             />
           )}
           {viewMode === "mindmap" && (
@@ -346,8 +380,15 @@ export function SocraticApp() {
       </main>
 
       {showCalibration && (
-        <CalibrationModal onComplete={handleCalibrationComplete} onClose={() => setShowCalibration(false)} />
+        <CalibrationModal 
+          onComplete={handleCalibrationComplete} 
+          onClose={() => setShowCalibration(false)}
+          topic={topic}
+        />
       )}
+
+      <FeedbackSystem />
+      {isInitialized && topic && <TopicGuard config={{ topic, maxOffTopicAttempts: 3 }} />}
     </div>
   )
 }

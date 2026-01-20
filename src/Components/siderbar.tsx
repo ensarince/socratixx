@@ -1,5 +1,3 @@
-"use client"
-
 import { Brain, Target, TrendingUp, ScrollText, Gauge, Settings2, Map, Link2 } from "lucide-react"
 import type { Assertion } from "./socratic-app"
 

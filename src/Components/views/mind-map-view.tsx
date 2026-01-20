@@ -1,5 +1,3 @@
-"use client"
-
 import type { ThoughtNode } from "../socratic-app"
 import { CheckCircle2, HelpCircle, Lock, Ghost } from "lucide-react"
 

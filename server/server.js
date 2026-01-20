@@ -75,7 +75,8 @@ let socraticState = {
 // SYSTEM PROMPTS FOR SOCRATIC METHOD
 // ============================================
 
-const SOCRATIC_SYSTEM_PROMPT = `You are a Socratic reasoning assistant designed to foster critical thinking through guided questioning.
+const SOCRATIC_SYSTEM_PROMPT = 
+`You are a Socratic reasoning assistant designed to foster critical thinking through guided questioning.
 
 CORE PRINCIPLES:
 1. NEVER provide direct answers. Always ask clarifying questions instead.
@@ -1205,6 +1206,199 @@ app.get("/api/knowledge-gap-map", (req, res) => {
             areas_locked: gapMap.filter(s => s.status === "locked").length
         }
     });
+});
+
+// ============================================
+// TOPIC VALIDATION
+// ============================================
+
+app.post("/api/question/validate-topic", async (req, res) => {
+    const { answer, topic } = req.body;
+    
+    if (!answer || !topic) {
+        return res.status(400).json({ error: "Answer and topic are required" });
+    }
+    
+    try {
+        const validationPrompt = `You are a topic validation assistant. Determine if the user's answer is relevant to the given topic.
+
+Topic: "${topic}"
+User's Answer: "${answer}"
+
+Analyze if the answer is:
+1. On-topic (directly related to the topic)
+2. Off-topic (not related to the topic)
+3. Tangential (somewhat related but straying from focus)
+
+Respond with a JSON object:
+{
+  "isOnTopic": boolean,
+  "confidence": 0-1,
+  "reason": "brief explanation",
+  "suggestion": "if off-topic, suggest how to refocus"
+}`;
+
+        const response = await openai.chat.completions.create({
+            model: "gpt-4o-mini",
+            messages: [
+                { role: "system", content: "You are a topic validation expert. Respond only with valid JSON." },
+                { role: "user", content: validationPrompt }
+            ],
+            temperature: 0.3,
+            response_format: { type: "json_object" }
+        });
+
+        const result = JSON.parse(response.choices[0].message.content);
+        res.json(result);
+    } catch (error) {
+        console.error("Topic validation error:", error);
+        res.status(500).json({ error: "Failed to validate topic", details: error.message });
+    }
+});
+
+app.post("/api/topic/validate", async (req, res) => {
+    const { userInput, topic } = req.body;
+    
+    if (!userInput || !topic) {
+        return res.status(400).json({ error: "User input and topic are required" });
+    }
+    
+    try {
+        const validationPrompt = `You are a strict topic moderator. Determine if the user's input is relevant to the topic.
+
+Topic: "${topic}"
+User Input: "${userInput}"
+
+Be strict but fair. Even if tangentially related, it might still be on-topic if it helps explore the main concept.
+
+Respond with ONLY valid JSON (no other text):
+{
+  "isOnTopic": boolean,
+  "reason": "brief explanation of why it is or isn't on-topic"
+}`;
+
+        const response = await openai.chat.completions.create({
+            model: "gpt-4o-mini",
+            messages: [
+                { role: "system", content: "You are a topic validation expert. Respond ONLY with valid JSON, no markdown, no code blocks." },
+                { role: "user", content: validationPrompt }
+            ],
+            temperature: 0.2,
+            response_format: { type: "json_object" }
+        });
+
+        const result = JSON.parse(response.choices[0].message.content);
+        res.json(result);
+    } catch (error) {
+        console.error("Topic validation error:", error);
+        res.status(500).json({ error: "Failed to validate topic", details: error.message });
+    }
+});
+
+// ============================================
+// ADAPTIVE CALIBRATION
+// ============================================
+
+app.post("/api/calibration/generate-questions", async (req, res) => {
+    const { topic, initialResponses = [] } = req.body;
+    
+    if (!topic) {
+        return res.status(400).json({ error: "Topic is required" });
+    }
+    
+    try {
+        const responseContext = initialResponses.length > 0 
+            ? `Based on their responses so far:\n${initialResponses.map((r, i) => `Q${i+1}: "${r}"`).join('\n')}\n\n`
+            : "";
+        
+        const prompt = `You are a Socratic tutor creating personalized calibration questions to assess a learner's knowledge level on: "${topic}"
+
+${responseContext}Generate exactly 2 follow-up questions that are:
+1. Specific to their previous answers (if any)
+2. Progressively more challenging
+3. Designed to uncover gaps and misconceptions
+4. Clear and concise
+
+Respond with ONLY valid JSON (no markdown, no code blocks):
+{
+  "questions": [
+    {
+      "question": "string - the question to ask",
+      "options": [
+        { "label": "string - option A", "value": 1 },
+        { "label": "string - option B", "value": 2 },
+        { "label": "string - option C", "value": 3 },
+        { "label": "string - option D", "value": 4 }
+      ]
+    },
+    {
+      "question": "string - second question",
+      "options": [
+        { "label": "string - option A", "value": 1 },
+        { "label": "string - option B", "value": 2 },
+        { "label": "string - option C", "value": 3 },
+        { "label": "string - option D", "value": 4 }
+      ]
+    }
+  ]
+}`;
+
+        const response = await openai.chat.completions.create({
+            model: "gpt-4o-mini",
+            messages: [
+                { role: "system", content: "You are a Socratic tutor. Respond ONLY with valid JSON." },
+                { role: "user", content: prompt }
+            ],
+            temperature: 0.7,
+            response_format: { type: "json_object" }
+        });
+
+        const result = JSON.parse(response.choices[0].message.content);
+        res.json(result);
+    } catch (error) {
+        console.error("Calibration generation error:", error);
+        res.status(500).json({ error: "Failed to generate calibration questions", details: error.message });
+    }
+});
+
+app.post("/api/calibration/analyze", async (req, res) => {
+    const { topic, responses = [] } = req.body;
+    
+    if (!topic || responses.length === 0) {
+        return res.status(400).json({ error: "Topic and responses are required" });
+    }
+    
+    try {
+        const prompt = `You are analyzing a learner's knowledge level on "${topic}".
+
+Their responses:
+${responses.map((r, i) => `Q${i+1} (score: ${r.score}): "${r.answer}"`).join('\n')}
+
+Determine their knowledge level and provide analysis. Respond with ONLY valid JSON (no markdown):
+{
+  "level": "beginner" | "intermediate" | "advanced",
+  "reasoning": "brief explanation of why this level",
+  "strengths": ["area1", "area2"],
+  "gaps": ["gap1", "gap2"],
+  "recommendedApproach": "brief guidance on how to scaffold learning"
+}`;
+
+        const response = await openai.chat.completions.create({
+            model: "gpt-4o-mini",
+            messages: [
+                { role: "system", content: "You are an expert tutor. Respond ONLY with valid JSON." },
+                { role: "user", content: prompt }
+            ],
+            temperature: 0.3,
+            response_format: { type: "json_object" }
+        });
+
+        const result = JSON.parse(response.choices[0].message.content);
+        res.json(result);
+    } catch (error) {
+        console.error("Calibration analysis error:", error);
+        res.status(500).json({ error: "Failed to analyze calibration", details: error.message });
+    }
 });
 
 // ============================================

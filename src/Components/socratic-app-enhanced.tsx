@@ -1,5 +1,3 @@
-"use client"
-
 import { useState } from "react"
 import { Sidebar } from "./siderbar"
 import { ViewSwitcher } from "./view-switcher"
