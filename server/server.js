@@ -32,35 +32,35 @@ let socraticState = {
     conversationHistory: [],
     questionDepth: 0,
     currentQuestion: null,
-    
+
     // KNOWLEDGE ROADMAP & CURRICULUM
     solutionPath: [], // 5-6 progressive steps to mastery
     currentPathStep: 0,
     prerequisites: [],
     pathGatekeepers: {}, // Validates mastery before moving to next step
-    
+
     // ERROR TAXONOMY
     misconceptions: [], // Array of detected misconceptions with categorization
     errorLog: [], // Track all errors with types
-    
+
     // ZPD & CALIBRATION
     calibrationQuestions: [],
     baselineKnowledgeLevel: null, // "beginner" | "intermediate" | "advanced"
     currentZPDLevel: "optimal", // "too-easy" | "optimal" | "too-hard"
-    
+
     // SCAFFOLDING SYSTEM
     scaffoldingLevels: [], // nudge, hint, partial-explanation progression
     currentScaffoldLevel: 0,
-    
+
     // ASSERTIONS & KNOWLEDGE TRACKING
     assertions: [], // User-proven facts
     provenNodes: new Set(),
-    
+
     // CONSISTENCY & SYNTHESIS
     consistencyScore: 0,
     contradictions: [],
     synthesisMemo: null, // Final synthesis attempt
-    
+
     // SESSION PROGRESSION
     progressTracker: {
         questionDiversity: [],
@@ -75,8 +75,8 @@ let socraticState = {
 // SYSTEM PROMPTS FOR SOCRATIC METHOD
 // ============================================
 
-const SOCRATIC_SYSTEM_PROMPT = 
-`You are a Socratic reasoning assistant designed to foster critical thinking through guided questioning.
+const SOCRATIC_SYSTEM_PROMPT =
+    `You are a Socratic reasoning assistant designed to foster critical thinking through guided questioning.
 
 CORE PRINCIPLES:
 1. NEVER provide direct answers. Always ask clarifying questions instead.
@@ -193,7 +193,7 @@ const CALIBRATION_TEMPLATES = {
 function initializeSession(topic) {
     // Generate solution path for this topic
     const solutionPath = SOLUTION_PATHS.default;
-    
+
     socraticState = {
         topic,
         userAnswers: [],
@@ -204,35 +204,35 @@ function initializeSession(topic) {
         conversationHistory: [],
         questionDepth: 0,
         currentQuestion: null,
-        
+
         // Knowledge Roadmap
         solutionPath,
         currentPathStep: 0,
         prerequisites: [],
         pathGatekeepers: {},
-        
+
         // Error Taxonomy
         misconceptions: [],
         errorLog: [],
-        
+
         // ZPD & Calibration
         calibrationQuestions: [],
         baselineKnowledgeLevel: null,
         currentZPDLevel: "optimal",
-        
+
         // Scaffolding
         scaffoldingLevels: [],
         currentScaffoldLevel: 0,
-        
+
         // Assertions
         assertions: [],
         provenNodes: new Set(),
-        
+
         // Consistency
         consistencyScore: 0,
         contradictions: [],
         synthesisMemo: null,
-        
+
         // Progress
         progressTracker: {
             questionDiversity: [],
@@ -253,7 +253,7 @@ function addToThoughtProcess(answer, questionNumber) {
         timestamp: Date.now()
     };
     socraticState.thoughtProcess.nodes.push(node);
-    
+
     if (socraticState.thoughtProcess.nodes.length > 1) {
         const prevNode = socraticState.thoughtProcess.nodes[socraticState.thoughtProcess.nodes.length - 2];
         socraticState.thoughtProcess.connections.push({
@@ -284,10 +284,10 @@ function buildSolutionPath(topic) {
 function canProgressToNextStep(currentStep) {
     // Gatekeeper: Validate that prerequisites are met
     if (currentStep === 0) return true; // First step always accessible
-    
+
     const currentStepGatekeepers = socraticState.pathGatekeepers[`step-${currentStep}`];
     if (!currentStepGatekeepers) return true; // No gatekeepers defined
-    
+
     // Check if all gatekeeper conditions are met
     return currentStepGatekeepers.every(condition => condition.isMet);
 }
@@ -308,7 +308,7 @@ function progressToNextStep() {
 function categorizeError(answer, expectedDirection) {
     // Heuristic-based error categorization
     // In production, would use LLM to properly categorize
-    
+
     if (answer.includes("forgot") || answer.includes("miscalculated")) {
         return ERROR_TYPES.CALCULATION;
     }
@@ -328,7 +328,7 @@ function detectMisconception(userAnswer, previousContext) {
         detected_at: socraticState.questionDepth,
         resolved: false
     };
-    
+
     socraticState.misconceptions.push(misconception);
     return misconception;
 }
@@ -368,7 +368,7 @@ function assessBaselineKnowledge(calibrationResponses) {
         if (resp.length < 100) return sum + 2;
         return sum + 3;
     }, 0);
-    
+
     if (complexity <= 2) {
         socraticState.baselineKnowledgeLevel = "beginner";
     } else if (complexity <= 4) {
@@ -376,7 +376,7 @@ function assessBaselineKnowledge(calibrationResponses) {
     } else {
         socraticState.baselineKnowledgeLevel = "advanced";
     }
-    
+
     return socraticState.baselineKnowledgeLevel;
 }
 
@@ -429,18 +429,18 @@ function recordAssertion(statement, nodeId, confidence) {
 
 function detectContradiction(newStatement, previousStatements) {
     // Heuristic contradiction detection
-    const hasNegation = newStatement.toLowerCase().includes("not") || 
-                       newStatement.toLowerCase().includes("no") ||
-                       newStatement.toLowerCase().includes("never");
-    
+    const hasNegation = newStatement.toLowerCase().includes("not") ||
+        newStatement.toLowerCase().includes("no") ||
+        newStatement.toLowerCase().includes("never");
+
     const contradictions = previousStatements.filter(prev => {
         if (hasNegation && !prev.toLowerCase().includes("not")) {
-            return prev.toLowerCase().split(/\s+/).some(word => 
+            return prev.toLowerCase().split(/\s+/).some(word =>
                 newStatement.toLowerCase().includes(word));
         }
         return false;
     });
-    
+
     if (contradictions.length > 0) {
         socraticState.contradictions.push({
             id: `contradiction-${Date.now()}`,
@@ -468,11 +468,11 @@ function updateConsistencyScore(resolvedContradiction = false) {
 
 function trackQuestionDiversity(questionType) {
     socraticState.progressTracker.questionSequence.push(questionType);
-    
+
     // Check for repetition
     const recentQuestions = socraticState.progressTracker.questionSequence.slice(-5);
     const uniqueTypes = new Set(recentQuestions).size;
-    
+
     if (uniqueTypes === 1 && recentQuestions.length >= 3) {
         return { warning: "Question type repetition detected", action: "vary_questions" };
     }
@@ -488,14 +488,14 @@ function generateSynthesisPrompt() {
         .slice(0, 5)
         .map(a => a.statement)
         .join("; ");
-    
+
     return `Based on what we've discussed (${provenAssertions}), can you write a 2-3 sentence summary explaining ${socraticState.topic} in your own words?`;
 }
 
 function evaluateSynthesis(synthesisMemo) {
     socraticState.synthesisMemo = synthesisMemo;
     socraticState.sessionPhase = "synthesis";
-    
+
     return {
         phase: "synthesis_evaluation",
         message: "Great! Now let me ask some questions to ensure we've covered everything..."
@@ -505,13 +505,13 @@ function evaluateSynthesis(synthesisMemo) {
 function generateKnowledgeGapMap() {
     const totalSteps = socraticState.solutionPath.length;
     const masteredSteps = socraticState.currentPathStep;
-    
+
     const gapMap = socraticState.solutionPath.map((step, idx) => ({
         step: step.name,
         status: idx < masteredSteps ? "mastered" : idx === masteredSteps ? "current" : "locked",
         confidence: idx < masteredSteps ? 100 : idx === masteredSteps ? socraticState.consistencyScore : 0
     }));
-    
+
     socraticState.knowledgeGapMap = gapMap;
     return gapMap;
 }
@@ -521,7 +521,7 @@ function generateKnowledgeGapMap() {
 // ============================================
 
 app.get("/", (req, res) => {
-    res.json({ 
+    res.json({
         message: "SOCRATIX - Socratic Reasoning Server",
         version: "2.0.0",
         status: "running",
@@ -535,15 +535,15 @@ app.get("/", (req, res) => {
 
 app.post("/api/session/init", (req, res) => {
     const { topic } = req.body;
-    
+
     if (!topic) {
         return res.status(400).json({ error: "Topic is required" });
     }
-    
+
     const state = initializeSession(topic);
     const calibrationQuestions = generateCalibrationQuestions(topic);
-    
-    res.json({ 
+
+    res.json({
         message: "Session initialized - Starting calibration phase",
         state,
         calibrationQuestions,
@@ -553,15 +553,15 @@ app.post("/api/session/init", (req, res) => {
 
 app.post("/api/session/calibrate", async (req, res) => {
     const { calibrationResponses } = req.body;
-    
+
     if (!calibrationResponses || calibrationResponses.length === 0) {
         return res.status(400).json({ error: "Calibration responses required" });
     }
-    
+
     try {
         const baselineLevel = assessBaselineKnowledge(calibrationResponses);
         socraticState.baselineKnowledgeLevel = baselineLevel;
-        
+
         // Generate first question based on baseline
         const firstQuestionPrompt = `Topic: "${socraticState.topic}"
 Learner Level: ${baselineLevel}
@@ -591,12 +591,12 @@ Just the question, nothing else.`;
             max_tokens: 200,
             temperature: 0.8
         });
-        
+
         const firstQuestion = response.choices[0].message.content;
         socraticState.currentQuestion = firstQuestion;
         socraticState.sessionPhase = "progressive";
         addToConversationHistory("assistant", firstQuestion);
-        
+
         res.json({
             message: "Calibration complete",
             baselineLevel,
@@ -633,11 +633,11 @@ app.get("/api/session/state", (req, res) => {
 
 app.post("/api/question/generate", async (req, res) => {
     const { topic } = req.body;
-    
+
     if (!topic) {
         return res.status(400).json({ error: "Topic is required" });
     }
-    
+
     try {
         const prompt = `Create an initial Socratic question for exploring: "${topic}"
                     
@@ -665,12 +665,12 @@ Just the question, nothing else.`;
             max_tokens: 150,
             temperature: 0.8
         });
-        
+
         const question = response.choices[0].message.content;
         socraticState.currentQuestion = question;
         socraticState.questionDepth = 0;
         addToConversationHistory("assistant", question);
-        
+
         res.json({ question, depth: 0 });
     } catch (error) {
         console.error("Error generating question:", error);
@@ -680,58 +680,58 @@ Just the question, nothing else.`;
 
 app.post("/api/question/respond", async (req, res) => {
     const { answer, confidence = 50 } = req.body;
-    
+
     if (!answer) {
         return res.status(400).json({ error: "Answer is required" });
     }
-    
+
     if (!socraticState.topic) {
         return res.status(400).json({ error: "No active session. Initialize a topic first." });
     }
-    
+
     try {
         socraticState.userAnswers.push(answer);
         socraticState.questionDepth += 1;
         addToThoughtProcess(answer, socraticState.userAnswers.length);
         addToConversationHistory("user", answer);
-        
+
         // Track question diversity
         const questionTypes = ["feynman", "edgeCase", "assumption", "doubleDown", "counterExemplar", "reflectiveToss"];
         const selectedType = questionTypes[Math.min(socraticState.questionDepth - 1, questionTypes.length - 1)];
         const typeInfo = QUESTION_TYPES[selectedType];
-        
+
         const loopCheck = trackQuestionDiversity(selectedType);
-        
+
         // Check for contradictions
         const previousAnswers = socraticState.userAnswers.slice(0, -1);
         const hasContradiction = detectContradiction(answer, previousAnswers);
-        
+
         // Record assertions if confidence is high
         if (confidence > 70) {
             recordAssertion(answer, `node-${socraticState.userAnswers.length}`, confidence);
         }
-        
+
         // Detect misconceptions for low confidence + high uncertainty
         if (confidence > 85 && socraticState.questionDepth > 2) {
             // High confidence answers need edge case testing
             const misconception = detectMisconception(answer, socraticState.conversationHistory);
         }
-        
+
         // Update consistency score
         updateConsistencyScore(hasContradiction === false);
-        
+
         const conversationContext = socraticState.conversationHistory
             .slice(-6)
             .map(msg => `${msg.role === 'user' ? 'Learner' : 'AI'}: ${msg.content}`)
             .join("\n\n");
-        
+
         // Determine scaffold level based on confidence
         let scaffoldGuidance = "";
         if (confidence < 40 && socraticState.currentScaffoldLevel < 2) {
             const scaffoldRequest = requestScaffold();
             scaffoldGuidance = `\n\nProvide ${scaffoldRequest.levelName} support - don't explain directly, just guide their thinking.`;
         }
-        
+
         const nextQuestionPrompt = `Topic: "${socraticState.topic}"
 Learner Level: ${socraticState.baselineKnowledgeLevel}
 Current Path Step: ${socraticState.currentPathStep}/${socraticState.solutionPath.length}
@@ -758,7 +758,7 @@ Generate the next Socratic question that:
 - Uses curious, firm, and encouraging tone
 
 Just the question.`;
-        
+
         const response = await openai.chat.completions.create({
             model: "gpt-4o-mini",
             messages: [
@@ -774,17 +774,17 @@ Just the question.`;
             max_tokens: 180,
             temperature: 0.8
         });
-        
+
         const nextQuestion = response.choices[0].message.content;
         socraticState.currentQuestion = nextQuestion;
         addToConversationHistory("assistant", nextQuestion);
-        
+
         // Check if ready for synthesis
-        const readyForSynthesis = socraticState.questionDepth >= 5 && 
-                                 socraticState.consistencyScore > 60 && 
-                                 socraticState.assertions.length > 2;
-        
-        res.json({ 
+        const readyForSynthesis = socraticState.questionDepth >= 5 &&
+            socraticState.consistencyScore > 60 &&
+            socraticState.assertions.length > 2;
+
+        res.json({
             question: nextQuestion,
             depth: socraticState.questionDepth,
             questionType: selectedType,
@@ -809,14 +809,14 @@ Just the question.`;
 
 app.post("/api/scaffold/request", async (req, res) => {
     const { currentQuestion } = req.body;
-    
+
     if (!socraticState.topic) {
         return res.status(400).json({ error: "No active session" });
     }
-    
+
     try {
         const scaffoldInfo = requestScaffold();
-        
+
         const scaffoldPrompt = `Question: "${currentQuestion}"
 Topic: "${socraticState.topic}"
 Scaffold Level: ${scaffoldInfo.levelName}
@@ -844,10 +844,10 @@ Be encouraging and maintain curiosity.`;
             max_tokens: 150,
             temperature: 0.8
         });
-        
+
         const scaffold = response.choices[0].message.content;
         addToConversationHistory("assistant", `[${scaffoldInfo.levelName}] ${scaffold}`);
-        
+
         res.json({
             level: scaffoldInfo.levelName,
             levelIndex: socraticState.currentScaffoldLevel,
@@ -868,7 +868,7 @@ app.post("/api/session/synthesize", async (req, res) => {
     try {
         const synthesisQuestion = generateSynthesisPrompt();
         socraticState.sessionPhase = "synthesis";
-        
+
         res.json({
             phase: "synthesis",
             message: "Now let's bring everything together. Can you synthesize your understanding?",
@@ -883,18 +883,18 @@ app.post("/api/session/synthesize", async (req, res) => {
 
 app.post("/api/session/evaluate-synthesis", async (req, res) => {
     const { synthesisMemo } = req.body;
-    
+
     if (!synthesisMemo) {
         return res.status(400).json({ error: "Synthesis memo required" });
     }
-    
+
     try {
         evaluateSynthesis(synthesisMemo);
         socraticState.sessionPhase = "conclusion";
-        
+
         // Generate knowledge gap map
         const gapMap = generateKnowledgeGapMap();
-        
+
         // AI plays confused student
         const evaluationPrompt = `The learner just synthesized their understanding of "${socraticState.topic}":
 
@@ -917,10 +917,10 @@ Your role now is to play a confused student asking them clarifying questions abo
             max_tokens: 150,
             temperature: 0.8
         });
-        
+
         const finalQuestion = response.choices[0].message.content;
         addToConversationHistory("assistant", finalQuestion);
-        
+
         res.json({
             phase: "final_validation",
             message: "One more question to test your mastery...",
@@ -945,7 +945,7 @@ app.post("/api/session/generate-confused-questions", async (req, res) => {
         console.log("[FLIP-MODE] Generating confused questions. Session topic:", socraticState.topic);
         console.log("[FLIP-MODE] Conversation history length:", socraticState.conversationHistory?.length || 0);
         console.log("[FLIP-MODE] Assertions count:", socraticState.assertions?.length || 0);
-        
+
         if (!socraticState.topic) {
             console.log("[FLIP-MODE] No active session, returning error");
             return res.status(400).json({ error: "No active session" });
@@ -1023,7 +1023,7 @@ Each question must be a complete, real question.`;
 
         const responseText = response.choices[0].message.content || "";
         let confusedQuestions = [];
-        
+
         // Clean up response text - remove markdown code blocks if present
         let cleanedResponse = responseText.trim();
         if (cleanedResponse.startsWith("```json")) {
@@ -1031,7 +1031,7 @@ Each question must be a complete, real question.`;
         } else if (cleanedResponse.startsWith("```")) {
             cleanedResponse = cleanedResponse.replace(/^```\n?/, "").replace(/\n?```$/, "");
         }
-        
+
         try {
             confusedQuestions = JSON.parse(cleanedResponse);
             if (!Array.isArray(confusedQuestions)) {
@@ -1084,7 +1084,7 @@ Each question must be a complete, real question.`;
 app.post("/api/session/conclude", async (req, res) => {
     try {
         const gapMap = generateKnowledgeGapMap();
-        
+
         const finalSummary = {
             topic: socraticState.topic,
             totalInteractions: socraticState.questionDepth,
@@ -1100,9 +1100,9 @@ app.post("/api/session/conclude", async (req, res) => {
             synthesis_memo: socraticState.synthesisMemo,
             phase: "concluded"
         };
-        
+
         socraticState.sessionPhase = "concluded";
-        
+
         res.json({
             message: "Session concluded successfully",
             summary: finalSummary,
@@ -1135,8 +1135,8 @@ app.get("/api/visualization/knowledge-graph", (req, res) => {
             id: `step-${idx}`,
             label: step.name,
             description: step.description,
-            status: idx < socraticState.currentPathStep ? "mastered" : 
-                   idx === socraticState.currentPathStep ? "current" : "locked",
+            status: idx < socraticState.currentPathStep ? "mastered" :
+                idx === socraticState.currentPathStep ? "current" : "locked",
             order: idx
         })),
         provenConcepts: socraticState.assertions.map(a => ({
@@ -1214,41 +1214,45 @@ app.get("/api/knowledge-gap-map", (req, res) => {
 
 app.post("/api/question/validate-topic", async (req, res) => {
     const { answer, topic } = req.body;
-    
+
     if (!answer || !topic) {
         return res.status(400).json({ error: "Answer and topic are required" });
     }
-    
+
     try {
-        const validationPrompt = `You are a topic validation assistant. Determine if the user's answer is relevant to the given topic.
+        const validationPrompt = `You are a STRICT topic validation expert. Your job is to determine if the user's answer is ACTUALLY relevant to the given topic.
 
 Topic: "${topic}"
 User's Answer: "${answer}"
 
-Analyze if the answer is:
-1. On-topic (directly related to the topic)
-2. Off-topic (not related to the topic)
-3. Tangential (somewhat related but straying from focus)
+Be VERY strict. Do not give credit for:
+- Random words or gibberish
+- Completely off-topic statements
+- Answers that don't address the topic at all
+- Nonsensical text
 
-Respond with a JSON object:
+Only mark as on-topic if the answer is CLEARLY related to "${topic}".
+
+Respond with ONLY valid JSON (no other text):
 {
   "isOnTopic": boolean,
-  "confidence": 0-1,
-  "reason": "brief explanation",
-  "suggestion": "if off-topic, suggest how to refocus"
+  "confidence": number between 0-1,
+  "reason": "brief explanation why this is or isn't on-topic",
+  "suggestion": "if off-topic, suggest how to refocus on ${topic}"
 }`;
 
         const response = await openai.chat.completions.create({
             model: "gpt-4o-mini",
             messages: [
-                { role: "system", content: "You are a topic validation expert. Respond only with valid JSON." },
+                { role: "system", content: "You are a STRICT topic validation expert. Be very selective. Respond ONLY with valid JSON." },
                 { role: "user", content: validationPrompt }
             ],
-            temperature: 0.3,
+            temperature: 0.1,  // Lower temperature for stricter validation
             response_format: { type: "json_object" }
         });
 
         const result = JSON.parse(response.choices[0].message.content);
+        console.log(`[Topic Validation] Topic: "${topic}", OnTopic: ${result.isOnTopic}, Confidence: ${result.confidence}`);
         res.json(result);
     } catch (error) {
         console.error("Topic validation error:", error);
@@ -1258,11 +1262,11 @@ Respond with a JSON object:
 
 app.post("/api/topic/validate", async (req, res) => {
     const { userInput, topic } = req.body;
-    
+
     if (!userInput || !topic) {
         return res.status(400).json({ error: "User input and topic are required" });
     }
-    
+
     try {
         const validationPrompt = `You are a strict topic moderator. Determine if the user's input is relevant to the topic.
 
@@ -1296,21 +1300,79 @@ Respond with ONLY valid JSON (no other text):
 });
 
 // ============================================
+// ANSWER QUALITY ANALYSIS
+// ============================================
+
+app.post("/api/answer/analyze-quality", async (req, res) => {
+    const { answer, topic, confidence } = req.body;
+
+    if (!answer) {
+        return res.status(400).json({ error: "Answer is required" });
+    }
+
+    try {
+        const qualityPrompt = `You are an expert evaluator of student reasoning and understanding. Analyze this answer for depth, clarity, and quality of thinking.
+
+Topic: ${topic || "General knowledge"}
+User Confidence Level: ${confidence || 50}%
+Answer: "${answer}"
+
+Evaluate and respond with ONLY valid JSON (no other text):
+{
+  "quality": true,
+  "qualityTier": "excellent" | "solid" | "good" | "basic",
+  "confidence": number between 0-100,
+  "wordCount": number,
+  "answerLength": number,
+  "hasLogicalReasoning": boolean,
+  "isWellStructured": boolean,
+  "reasoning": "brief explanation of your assessment"
+}
+
+IMPORTANT:
+- hasLogicalReasoning: true only if there are clear logical connections, causality, or reasoning patterns (not just keyword matching)
+- isWellStructured: true if ideas are organized, multi-part, or show clear progression
+- qualityTier should reflect actual understanding, not just confidence
+- Excellent: Shows deep reasoning, multiple perspectives, or clear insights
+- Solid: Good reasoning with clear explanations
+- Good: Basic understanding with some explanation
+- Basic: Minimal reasoning or simple statements`;
+
+        const response = await openai.chat.completions.create({
+            model: "gpt-4o-mini",
+            messages: [
+                { role: "system", content: "You are an expert evaluator of student reasoning. Respond ONLY with valid JSON, no markdown, no code blocks." },
+                { role: "user", content: qualityPrompt }
+            ],
+            temperature: 0.3,  // Slightly flexible to allow nuanced assessment
+            response_format: { type: "json_object" }
+        });
+
+        const result = JSON.parse(response.choices[0].message.content);
+        console.log(`[Quality Analysis] Tier: ${result.qualityTier}, LogicalReasoning: ${result.hasLogicalReasoning}, Structured: ${result.isWellStructured}`);
+        res.json(result);
+    } catch (error) {
+        console.error("Quality analysis error:", error);
+        res.status(500).json({ error: "Failed to analyze answer quality", details: error.message });
+    }
+});
+
+// ============================================
 // ADAPTIVE CALIBRATION
 // ============================================
 
 app.post("/api/calibration/generate-questions", async (req, res) => {
     const { topic, initialResponses = [] } = req.body;
-    
+
     if (!topic) {
         return res.status(400).json({ error: "Topic is required" });
     }
-    
+
     try {
-        const responseContext = initialResponses.length > 0 
-            ? `Based on their responses so far:\n${initialResponses.map((r, i) => `Q${i+1}: "${r}"`).join('\n')}\n\n`
+        const responseContext = initialResponses.length > 0
+            ? `Based on their responses so far:\n${initialResponses.map((r, i) => `Q${i + 1}: "${r}"`).join('\n')}\n\n`
             : "";
-        
+
         const prompt = `You are a Socratic tutor creating personalized calibration questions to assess a learner's knowledge level on: "${topic}"
 
 ${responseContext}Generate exactly 2 follow-up questions that are:
@@ -1363,16 +1425,16 @@ Respond with ONLY valid JSON (no markdown, no code blocks):
 
 app.post("/api/calibration/analyze", async (req, res) => {
     const { topic, responses = [] } = req.body;
-    
+
     if (!topic || responses.length === 0) {
         return res.status(400).json({ error: "Topic and responses are required" });
     }
-    
+
     try {
         const prompt = `You are analyzing a learner's knowledge level on "${topic}".
 
 Their responses:
-${responses.map((r, i) => `Q${i+1} (score: ${r.score}): "${r.answer}"`).join('\n')}
+${responses.map((r, i) => `Q${i + 1} (score: ${r.score}): "${r.answer}"`).join('\n')}
 
 Determine their knowledge level and provide analysis. Respond with ONLY valid JSON (no markdown):
 {

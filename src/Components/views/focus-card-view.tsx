@@ -7,7 +7,7 @@ import { FeedbackHelpers } from "../feedback-helpers"
 
 interface FocusCardViewProps {
   node: ThoughtNode
-  onAnswer: (answer: string, confidence: number) => void
+  onAnswer: (answer: string, confidence: number, quality?: { confidence: number; wordCount: number; hasLogicalReasoning: boolean; isWellStructured: boolean; answerLength: number }) => void
   onRequestScaffold: () => void
   calibrationLevel: "beginner" | "intermediate" | "advanced"
   topic?: string
@@ -79,9 +79,13 @@ export function FocusCardView({ node, onAnswer, onRequestScaffold: requestScaffo
     setIsSubmitting(true)
 
     try {
+      let isOnTopic = true
+      
       // Validate topic with server if topic is provided
       if (topic) {
         try {
+          console.log("🔍 Validating answer against topic:", { topic, answerLength: answer.length })
+          
           const response = await fetch(
             `${import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api"}/question/validate-topic`,
             {
@@ -91,42 +95,91 @@ export function FocusCardView({ node, onAnswer, onRequestScaffold: requestScaffo
             }
           )
           const validation = await response.json()
+          console.log("📊 Validation result:", validation)
+          
+          isOnTopic = validation.isOnTopic ?? true
 
-          if (!validation.isOnTopic) {
+          if (!isOnTopic) {
+            console.warn("⚠️ Answer is off-topic!")
             FeedbackHelpers.offTopicWarning(
               validation.reason || `Let's focus on "${topic}" instead.`
             )
             setIsSubmitting(false)
             return // Block submission
           }
+          
+          console.log("✅ Answer is on-topic, proceeding...")
         } catch (error) {
           console.error("Topic validation error:", error)
           // Continue if validation fails
         }
-      }
-
-      // Emit feedback based on quality
-      const hasLogicalReasoning = answer.includes("because") || 
-                                   answer.includes("therefore") || 
-                                   answer.includes("so") ||
-                                   answer.includes("thus") ||
-                                   answer.includes("implies") ||
-                                   answer.includes("leads to")
-      
-      if (confidence >= 80) {
-        FeedbackHelpers.answerValidated("excellent")
-        // Aha moment: high confidence + logical reasoning + substantial answer
-        if (answer.length > 100 && hasLogicalReasoning) {
-          FeedbackHelpers.ahaMoment(answer.substring(0, 60))
-        }
-      } else if (confidence >= 60) {
-        FeedbackHelpers.answerValidated("solid")
       } else {
-        FeedbackHelpers.answerValidated("good")
+        console.warn("⚠️ No topic provided for validation")
       }
 
-      // Clear and submit
-      onAnswer(answer, confidence)
+      // Detect basic gibberish (very simple check)
+      const words = answer.trim().split(/\s+/)
+      const hasCommonWords = words.slice(0, 5).some(w => {
+        const lower = w.toLowerCase()
+        return lower.length > 2 && (
+          /[aeiou]/i.test(lower) ||  // Has vowels
+          lower.match(/[a-z]{2,}/i)  // Has letter sequences
+        )
+      })
+      
+      if (words.length < 5 || !hasCommonWords) {
+        // Likely gibberish/random input
+        FeedbackHelpers.offTopicWarning("Please provide a meaningful answer with actual words and ideas.")
+        setIsSubmitting(false)
+        return
+      }
+
+      // Send to backend for AI quality analysis
+      console.log("📤 Sending answer to server for quality analysis...")
+      let answerQuality = null
+      try {
+        const qualityResponse = await fetch(
+          `${import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api"}/answer/analyze-quality`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ 
+              answer, 
+              topic,
+              confidence
+            }),
+          }
+        )
+        const qualityData = await qualityResponse.json()
+        console.log("📊 Quality analysis result:", qualityData)
+        
+        if (qualityData.quality) {
+          answerQuality = {
+            confidence: qualityData.confidence || confidence,
+            wordCount: qualityData.wordCount,
+            hasLogicalReasoning: qualityData.hasLogicalReasoning,
+            isWellStructured: qualityData.isWellStructured,
+            answerLength: answer.trim().length,
+            qualityTier: qualityData.qualityTier,
+          }
+          console.log("✅ Quality data prepared:", answerQuality)
+        }
+      } catch (error) {
+        console.error("Quality analysis error:", error)
+        // Fall back to basic analysis if server fails
+        const wordCount = answer.trim().split(/\s+/).length
+        answerQuality = {
+          confidence,
+          wordCount,
+          hasLogicalReasoning: false,
+          isWellStructured: wordCount > 20,
+          answerLength: answer.trim().length,
+          qualityTier: confidence >= 65 ? "solid" : "good",
+        }
+      }
+
+      // Clear and submit - parent component handles all feedback
+      onAnswer(answer, confidence, answerQuality)
       setAnswer("")
       setConfidence(50)
     } finally {

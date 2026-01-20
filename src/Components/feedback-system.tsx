@@ -91,6 +91,8 @@ export function FeedbackSystem() {
           const intensity = feedback.intensity || "subtle"
 
           const isAhaMoment = feedback.type === "aha-moment"
+          const isWarning = feedback.type === "off-topic-warning"
+          const isBreakthrough = feedback.type === "breakthrough"
 
           return (
             <motion.div
@@ -100,25 +102,63 @@ export function FeedbackSystem() {
                 opacity: 1, 
                 x: 0, 
                 scale: 1,
+                ...(isWarning ? { x: [100, -5, 0] } : {}),
               }}
               exit={{ opacity: 0, x: 100, scale: 0.9 }}
-              transition={{ type: "spring", stiffness: 400, damping: 25 }}
+              transition={{ 
+                type: "spring", 
+                stiffness: isWarning ? 300 : 400, 
+                damping: isWarning ? 15 : 25,
+              }}
               className={`
                 flex items-start gap-3 p-4 rounded-lg border backdrop-blur-sm
                 ${style.bgColor}
                 transition-all duration-300
+                ${isWarning ? "ring-2 ring-rose-400/50 shadow-lg shadow-rose-500/20" : ""}
+                ${isAhaMoment ? "ring-2 ring-yellow-400/50 shadow-lg shadow-yellow-500/20" : ""}
+                ${isBreakthrough ? "ring-2 ring-purple-400/50 shadow-lg shadow-purple-500/20" : ""}
               `}
             >
               {isAhaMoment ? (
                 <motion.div
                   animate={{ 
-                    scale: [1, 1.2, 1],
-                    rotate: [0, 10, -10, 0],
+                    scale: [1, 1.3, 1],
+                    rotate: [0, 15, -15, 0],
                   }}
                   transition={{ 
-                    duration: 0.6,
+                    duration: 0.5,
+                    repeat: Infinity,
+                    repeatDelay: 1.2,
+                  }}
+                  className={`w-5 h-5 ${style.iconColor} shrink-0 mt-0.5`}
+                >
+                  <Icon className="w-full h-full" />
+                </motion.div>
+              ) : isWarning ? (
+                <motion.div
+                  animate={{ 
+                    scale: [1, 1.15, 1],
+                    rotate: [0, -5, 5, 0],
+                  }}
+                  transition={{ 
+                    duration: 0.4,
                     repeat: Infinity,
                     repeatDelay: 1.5,
+                  }}
+                  className={`w-5 h-5 ${style.iconColor} shrink-0 mt-0.5`}
+                >
+                  <Icon className="w-full h-full" />
+                </motion.div>
+              ) : isBreakthrough ? (
+                <motion.div
+                  animate={{ 
+                    scale: [1, 1.25, 1],
+                    rotate: [0, 360],
+                  }}
+                  transition={{ 
+                    duration: 0.8,
+                    repeat: Infinity,
+                    repeatDelay: 1,
                   }}
                   className={`w-5 h-5 ${style.iconColor} shrink-0 mt-0.5`}
                 >
@@ -151,34 +191,66 @@ export function FeedbackSystem() {
                 <>
                   <motion.div
                     animate={{ 
-                      y: [0, -20, 0],
-                      opacity: [1, 0.5, 1],
+                      y: [0, -25, 0],
+                      opacity: [1, 0.7, 1],
+                      scale: [0.8, 1.2, 0.8],
                     }}
                     transition={{ 
-                      duration: 0.8,
+                      duration: 0.7,
                       repeat: Infinity,
                       repeatDelay: 1,
                     }}
-                    className="absolute top-2 left-4 text-2xl"
+                    className="absolute top-1 left-2 text-xl"
                   >
                     ✨
                   </motion.div>
                   <motion.div
                     animate={{ 
-                      y: [0, -25, 0],
-                      opacity: [1, 0.5, 1],
+                      y: [0, -28, 0],
+                      opacity: [1, 0.7, 1],
+                      scale: [0.8, 1.2, 0.8],
                     }}
                     transition={{ 
-                      duration: 0.9,
+                      duration: 0.8,
                       repeat: Infinity,
-                      repeatDelay: 0.8,
-                      delay: 0.1,
+                      repeatDelay: 0.9,
+                      delay: 0.15,
                     }}
-                    className="absolute top-6 right-6 text-2xl"
+                    className="absolute top-5 right-4 text-xl"
+                  >
+                    ✨
+                  </motion.div>
+                  <motion.div
+                    animate={{ 
+                      y: [0, -30, 0],
+                      opacity: [1, 0.6, 1],
+                      scale: [0.8, 1.3, 0.8],
+                    }}
+                    transition={{ 
+                      duration: 0.75,
+                      repeat: Infinity,
+                      repeatDelay: 0.95,
+                      delay: 0.3,
+                    }}
+                    className="absolute bottom-2 right-8 text-lg"
                   >
                     ✨
                   </motion.div>
                 </>
+              )}
+              
+              {intensity === "prominent" && isWarning && (
+                <motion.div
+                  animate={{ 
+                    x: [-3, 3, -3, 0],
+                  }}
+                  transition={{ 
+                    duration: 0.4,
+                    repeat: Infinity,
+                    repeatDelay: 2,
+                  }}
+                  className="absolute inset-0 rounded-lg pointer-events-none"
+                />
               )}
             </motion.div>
           )

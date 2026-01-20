@@ -50,14 +50,12 @@ export function SocraticApp() {
   const [nodes, setNodes] = useState<ThoughtNode[]>([])
   const [currentNodeId, setCurrentNodeId] = useState<string>("")
   const [consistencyScore, setConsistencyScore] = useState(0)
-  const [prevConsistencyScore, setPrevConsistencyScore] = useState(0)
   const [assertions, setAssertions] = useState<Assertion[]>([])
   const [showCalibration, setShowCalibration] = useState(false)
   const [zpdLevel, setZpdLevel] = useState<"easy" | "optimal" | "hard">("optimal")
   const [calibrationLevel, setCalibrationLevel] = useState<"beginner" | "intermediate" | "advanced">("intermediate")
   
   // Backend integration
-  const [session, setSession] = useState<SocraticSession | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [topic, setTopic] = useState<string>("")
@@ -73,8 +71,7 @@ export function SocraticApp() {
     
     try {
       // Initialize backend session
-      const sessionData = await SocraticAPI.initializeSession(selectedTopic)
-      setSession(sessionData.state)
+      await SocraticAPI.initializeSession(selectedTopic)
       setTopic(selectedTopic)
       
       // Create root node
@@ -117,7 +114,7 @@ export function SocraticApp() {
     }
   }
 
-  const handleAnswer = async (answer: string, confidence: number) => {
+  const handleAnswer = async (answer: string, confidence: number, quality?: { confidence: number; wordCount: number; hasLogicalReasoning: boolean; isWellStructured: boolean; answerLength: number }) => {
     setLoading(true)
     setError(null)
     
@@ -180,46 +177,72 @@ export function SocraticApp() {
 
       setCurrentNodeId(nextNodeId)
 
-      // Update consistency score with feedback
-      const oldScore = consistencyScore
-      const newScore = Math.min(100, consistencyScore + 5)
-      setConsistencyScore(newScore)
-      setPrevConsistencyScore(oldScore)
-
-      // Emit feedback based on consistency milestones
-      if (newScore > oldScore) {
-        if (newScore === 100) {
-          // Perfect consistency = breakthrough/mastery
-          FeedbackHelpers.breakthrough("complete understanding of this topic")
-        } else if (newScore % 10 === 0) {
-          // Milestone feedback every 10%
-          FeedbackHelpers.consistencyGain(oldScore, newScore)
+      // === UNIFIED FEEDBACK SYSTEM ===
+      // All feedback is coordinated here to prevent overlapping
+      
+      // First: Emit answer validation feedback based on AI-determined quality
+      if (quality) {
+        const qualityTier = quality.qualityTier || "good"
+        if (qualityTier === "excellent") {
+          FeedbackHelpers.answerValidated("excellent")
+          console.log("✅ Excellent answer validated")
+        } else if (qualityTier === "solid") {
+          FeedbackHelpers.answerValidated("solid")
+          console.log("✅ Solid answer validated")
+        } else {
+          FeedbackHelpers.answerValidated("good")
+          console.log("✅ Good answer validated")
         }
+      } else {
+        FeedbackHelpers.answerValidated("good")
+        console.log("✅ Answer recorded")
       }
+
+      // Second: Check for aha moments (triggered ~500ms after answer validation)
+      if (quality) {
+        setTimeout(() => {
+          const { hasLogicalReasoning, isWellStructured, qualityTier } = quality
+          
+          // Aha moments only for answers with actual logical reasoning
+          if ((qualityTier === "excellent" || qualityTier === "solid") && hasLogicalReasoning) {
+            console.log("💡 Aha moment triggered - strong reasoning detected!")
+            FeedbackHelpers.ahaMoment(answer.substring(0, 60))
+          }
+        }, 500)
+      }
+
+      // Third: Update consistency and emit milestone feedback (~1.5s after answer)
+      setTimeout(() => {
+        const oldScore = consistencyScore
+        const newScore = Math.min(100, consistencyScore + 8)
+        setConsistencyScore(newScore)
+        
+        console.log("📈 Consistency Score:", { oldScore, newScore, milestone: newScore % 10 === 0 })
+
+        if (newScore > oldScore) {
+          if (newScore >= 100) {
+            console.log("🎯 BREAKTHROUGH: 100% consistency achieved!")
+            FeedbackHelpers.breakthrough("complete understanding of this topic")
+          } else if (newScore % 10 === 0 && oldScore % 10 !== 0) {
+            // Only fire when crossing 10%, 20%, 30%, etc
+            console.log(`📊 Consistency milestone: ${oldScore}% → ${newScore}%`)
+            FeedbackHelpers.consistencyGain(oldScore, newScore)
+          }
+        }
+      }, 1500)
 
       // Emit breakthrough celebration for synthesis-ready state
       if (response.readyForSynthesis) {
-        FeedbackHelpers.breakthrough("this concept - you're ready for synthesis")
+        setTimeout(() => {
+          console.log("🚀 Synthesis ready!")
+          FeedbackHelpers.breakthrough("this concept - you're ready for synthesis")
+        }, 2000)
       }
 
       // Adjust ZPD based on confidence
       if (confidence < 40) setZpdLevel("hard")
       else if (confidence > 85) setZpdLevel("easy")
       else setZpdLevel("optimal")
-
-      setSession(response.state || session)
-
-      setCurrentNodeId(nextNodeId)
-
-      // Update depth and scores
-      setConsistencyScore((prev) => Math.min(100, prev + 5))
-      
-      // Adjust ZPD based on confidence
-      if (confidence < 40) setZpdLevel("hard")
-      else if (confidence > 85) setZpdLevel("easy")
-      else setZpdLevel("optimal")
-
-      setSession(response.state || session)
       
     } catch (err: unknown) {
       const errorMsg = err instanceof SocraticAPIError ? (err as SocraticAPIError).message : "Failed to process answer"
@@ -252,7 +275,6 @@ export function SocraticApp() {
       setCurrentNodeId("")
       setConsistencyScore(0)
       setAssertions([])
-      setSession(null)
       setIsInitialized(false)
       setShowTopicInput(true)
       setTopic("")
