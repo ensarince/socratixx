@@ -165,7 +165,7 @@ export function FocusCardView({ node, onAnswer, onRequestScaffold: requestScaffo
 
       // Send to backend for AI quality analysis
       console.log("📤 Sending answer to server for quality analysis...")
-      let answerQuality = null
+      let answerQuality: { confidence: number; wordCount: number; hasLogicalReasoning: boolean; isWellStructured: boolean; answerLength: number } | undefined = undefined
       try {
         const qualityResponse = await fetch(
           `${import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api"}/answer/analyze-quality`,
@@ -184,12 +184,11 @@ export function FocusCardView({ node, onAnswer, onRequestScaffold: requestScaffo
         
         if (qualityData.quality) {
           answerQuality = {
-            confidence: qualityData.confidence || confidence,
-            wordCount: qualityData.wordCount,
-            hasLogicalReasoning: qualityData.hasLogicalReasoning,
-            isWellStructured: qualityData.isWellStructured,
+            confidence: Number(qualityData.confidence) || confidence,
+            wordCount: Number(qualityData.wordCount),
+            hasLogicalReasoning: Boolean(qualityData.hasLogicalReasoning),
+            isWellStructured: Boolean(qualityData.isWellStructured),
             answerLength: answer.trim().length,
-            qualityTier: qualityData.qualityTier,
           }
           console.log("✅ Quality data prepared:", answerQuality)
         }
@@ -203,7 +202,6 @@ export function FocusCardView({ node, onAnswer, onRequestScaffold: requestScaffo
           hasLogicalReasoning: false,
           isWellStructured: wordCount > 20,
           answerLength: answer.trim().length,
-          qualityTier: confidence >= 65 ? "solid" : "good",
         }
       }
 
