@@ -6,6 +6,7 @@ export type FeedbackType =
   | "aha-moment" 
   | "answer-validated" 
   | "off-topic-warning" 
+  | "ai-detected"
   | "consistency-gain" 
   | "breakthrough"
 
@@ -41,6 +42,12 @@ const feedbackStyles = {
     icon: AlertCircle,
     iconColor: "text-rose-400",
     textColor: "text-rose-200",
+  },
+  "ai-detected": {
+    bgColor: "bg-red-500/10 border-red-500/30",
+    icon: AlertCircle,
+    iconColor: "text-red-400",
+    textColor: "text-red-200",
   },
   "consistency-gain": {
     bgColor: "bg-blue-500/10 border-blue-500/30",
@@ -83,7 +90,7 @@ export function FeedbackSystem() {
   }, [])
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 max-w-sm space-y-2">
+    <div className="fixed bottom-6 right-6 z-50 max-w-md space-y-3">
       <AnimatePresence>
         {feedbacks.map((feedback) => {
           const style = feedbackStyles[feedback.type]
@@ -111,7 +118,7 @@ export function FeedbackSystem() {
                 damping: isWarning ? 15 : 25,
               }}
               className={`
-                flex items-start gap-3 p-4 rounded-lg border backdrop-blur-sm
+                flex items-start gap-4 p-6 rounded-lg border backdrop-blur-sm
                 ${style.bgColor}
                 transition-all duration-300
                 ${isWarning ? "ring-2 ring-rose-400/50 shadow-lg shadow-rose-500/20" : ""}
@@ -130,7 +137,7 @@ export function FeedbackSystem() {
                     repeat: Infinity,
                     repeatDelay: 1.2,
                   }}
-                  className={`w-5 h-5 ${style.iconColor} shrink-0 mt-0.5`}
+                  className={`w-8 h-8 ${style.iconColor} shrink-0 mt-1`}
                 >
                   <Icon className="w-full h-full" />
                 </motion.div>
@@ -145,7 +152,7 @@ export function FeedbackSystem() {
                     repeat: Infinity,
                     repeatDelay: 1.5,
                   }}
-                  className={`w-5 h-5 ${style.iconColor} shrink-0 mt-0.5`}
+                  className={`w-8 h-8 ${style.iconColor} shrink-0 mt-1`}
                 >
                   <Icon className="w-full h-full" />
                 </motion.div>
@@ -160,12 +167,12 @@ export function FeedbackSystem() {
                     repeat: Infinity,
                     repeatDelay: 1,
                   }}
-                  className={`w-5 h-5 ${style.iconColor} shrink-0 mt-0.5`}
+                  className={`w-8 h-8 ${style.iconColor} shrink-0 mt-1`}
                 >
                   <Icon className="w-full h-full" />
                 </motion.div>
               ) : (
-                <Icon className={`w-5 h-5 ${style.iconColor} shrink-0 mt-0.5`} />
+                <Icon className={`w-8 h-8 ${style.iconColor} shrink-0 mt-1`} />
               )}
 
               <div className="flex-1">
@@ -173,7 +180,7 @@ export function FeedbackSystem() {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ delay: 0.1 }}
-                  className={`font-semibold text-sm ${style.textColor}`}
+                  className={`font-bold text-base ${style.textColor}`}
                 >
                   {feedback.title}
                 </motion.h4>
@@ -181,7 +188,7 @@ export function FeedbackSystem() {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ delay: 0.15 }}
-                  className={`text-xs ${style.textColor}/70 mt-1`}
+                  className={`text-sm ${style.textColor}/70 mt-2`}
                 >
                   {feedback.message}
                 </motion.p>

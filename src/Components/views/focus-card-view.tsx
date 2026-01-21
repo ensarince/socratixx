@@ -117,6 +117,35 @@ export function FocusCardView({ node, onAnswer, onRequestScaffold: requestScaffo
         console.warn("⚠️ No topic provided for validation")
       }
 
+      // Check for AI-generated content
+      try {
+        console.log("🤖 Checking for AI-generated content...")
+        const aiResponse = await fetch(
+          `${import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api"}/answer/detect-ai`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ answer }),
+          }
+        )
+        const aiResult = await aiResponse.json()
+        console.log("🔍 AI detection result:", aiResult)
+
+        if (aiResult.isLikelyAI) {
+          console.warn("⚠️ Answer detected as AI-generated!")
+          FeedbackHelpers.aiDetected(
+            aiResult.reasoning || "AI-generated content detected"
+          )
+          setIsSubmitting(false)
+          return // Block submission
+        }
+
+        console.log("✅ Answer passed AI check")
+      } catch (error) {
+        console.error("AI detection error:", error)
+        // Continue if check fails - don't block on error
+      }
+
       // Detect basic gibberish (very simple check)
       const words = answer.trim().split(/\s+/)
       const hasCommonWords = words.slice(0, 5).some(w => {

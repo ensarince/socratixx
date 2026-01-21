@@ -1358,6 +1358,71 @@ IMPORTANT:
 });
 
 // ============================================
+// AI DETECTION
+// ============================================
+
+app.post("/api/answer/detect-ai", async (req, res) => {
+    const { answer } = req.body;
+
+    if (!answer) {
+        return res.status(400).json({ error: "Answer is required" });
+    }
+
+    try {
+        const aiDetectionPrompt = `You are an expert at detecting AI-generated text. Analyze this answer to determine if it was likely written by an AI or a human.
+
+Answer to analyze: "${answer}"
+
+Look for these AI indicators:
+- Overly formal or polished language (especially for casual topics)
+- Generic phrases and perfect grammar with no natural mistakes
+- Overly comprehensive coverage with perfect structure
+- Lack of personal perspective, uncertainty, or authentic voice
+- Mathematical precision in explanation (too clean)
+- Repetitive sentence structure
+- Using multiple perspectives without personal commitment
+- No emotional language, colloquialisms, or natural speech patterns
+
+Respond with ONLY valid JSON (no other text):
+{
+  "isLikelyAI": boolean,
+  "confidence": number between 0-100,
+  "indicators": ["list", "of", "detected", "indicators"],
+  "reasoning": "brief explanation of assessment"
+}
+
+IMPORTANT:
+- isLikelyAI: true if answer has 3+ strong AI indicators or shows clear signs of AI generation
+- confidence: how certain you are (0-100)
+- Be lenient - this is for learning, not punishment
+- Natural student answers with good grammar are still human
+- What matters is authenticity and personal voice`;
+
+        const response = await openai.chat.completions.create({
+            model: "gpt-4o-mini",
+            messages: [
+                { role: "system", content: "You are an expert at detecting AI-generated text. Respond ONLY with valid JSON, no markdown, no code blocks." },
+                { role: "user", content: aiDetectionPrompt }
+            ],
+            temperature: 0.3,
+            response_format: { type: "json_object" }
+        });
+
+        const result = JSON.parse(response.choices[0].message.content);
+        console.log(`[AI Detection] IsAI: ${result.isLikelyAI}, Confidence: ${result.confidence}%, Indicators: ${result.indicators.join(", ")}`);
+        res.json(result);
+    } catch (error) {
+        console.error("AI detection error:", error);
+        // Default to allowing submission if detection fails
+        res.status(500).json({ 
+            isLikelyAI: false, 
+            error: "Failed to detect AI content", 
+            details: error.message 
+        });
+    }
+});
+
+// ============================================
 // ADAPTIVE CALIBRATION
 // ============================================
 

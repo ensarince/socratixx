@@ -45,6 +45,17 @@ export const FeedbackHelpers = {
     })
   },
 
+  aiDetected: (reason: string = "AI-generated content detected") => {
+    console.log("🤖 AI DETECTED:", reason)
+    emitFeedback({
+      type: "ai-detected",
+      title: "🤖 AI Answer Detected",
+      message: "Keep it human! 🤝 This is about understanding through your own thinking. Share your genuine thoughts and reasoning—that's where real learning happens.",
+      intensity: "prominent",
+      duration: 6000,
+    })
+  },
+
   consistencyGain: (previousScore: number, newScore: number) => {
     console.log("📈 Consistency gain:", previousScore, "→", newScore)
     emitFeedback({

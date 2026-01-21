@@ -1,8 +1,7 @@
 import { useState } from "react"
 import { Sidebar } from "./siderbar"
 import { ViewSwitcher } from "./view-switcher"
-import { MindMapView } from "./views/mind-map-view"
-import { InfiniteCanvasView } from "./views/infinite-canvas-view"
+import { MindMapView } from "./views/mindmap-view"
 import { FlipModeView } from "./views/flip-mode-view"
 import { CalibrationModal } from "./calibration"
 import { FocusCardView } from "./views/focus-card-view"
@@ -11,7 +10,7 @@ import { TopicGuard } from "./topic-guard"
 import { FeedbackHelpers } from "./feedback-helpers"
 import { SocraticAPI, SocraticAPIError } from "../services/socratic-api"
 
-export type ViewMode = "focus" | "mindmap" | "canvas" | "flip"
+export type ViewMode = "focus" | "mindmap" | "flip"
 
 export interface ThoughtNode {
   id: string
@@ -31,18 +30,6 @@ export interface Assertion {
   text: string
   nodeId: string
   timestamp: Date
-}
-
-interface SocraticSession {
-  topic: string | null
-  userAnswers: string[]
-  thoughtProcess: {
-    nodes: Array<{ id: string; text: string; depth: number; timestamp: number }>
-    connections: Array<{ from: string; to: string }>
-  }
-  conversationHistory: Array<{ role: 'user' | 'assistant'; content: string; timestamp: number }>
-  questionDepth: number
-  currentQuestion: string | null
 }
 
 export function SocraticApp() {
@@ -114,7 +101,7 @@ export function SocraticApp() {
     }
   }
 
-  const handleAnswer = async (answer: string, confidence: number, quality?: { confidence: number; wordCount: number; hasLogicalReasoning: boolean; isWellStructured: boolean; answerLength: number }) => {
+  const handleAnswer = async (answer: string, confidence: number, quality?: { confidence: number; wordCount: number; hasLogicalReasoning: boolean; isWellStructured: boolean; answerLength: number; qualityTier?: string }) => {
     setLoading(true)
     setError(null)
     
@@ -198,17 +185,13 @@ export function SocraticApp() {
         console.log("✅ Answer recorded")
       }
 
-      // Second: Check for aha moments (triggered ~500ms after answer validation)
-      if (quality) {
+      // Second: Check for aha moments (triggered ~300ms after answer validation)
+      // Aha moments trigger when backend detects logical reasoning
+      if (quality?.hasLogicalReasoning) {
         setTimeout(() => {
-          const { hasLogicalReasoning, isWellStructured, qualityTier } = quality
-          
-          // Aha moments only for answers with actual logical reasoning
-          if ((qualityTier === "excellent" || qualityTier === "solid") && hasLogicalReasoning) {
-            console.log("💡 Aha moment triggered - strong reasoning detected!")
-            FeedbackHelpers.ahaMoment(answer.substring(0, 60))
-          }
-        }, 500)
+          console.log("💡 Aha moment triggered - logical reasoning detected!")
+          FeedbackHelpers.ahaMoment(answer.substring(0, 60))
+        }, 300)
       }
 
       // Third: Update consistency and emit milestone feedback (~1.5s after answer)
@@ -391,9 +374,6 @@ export function SocraticApp() {
           )}
           {viewMode === "mindmap" && (
             <MindMapView nodes={nodes} currentNodeId={currentNodeId} onNodeSelect={setCurrentNodeId} />
-          )}
-          {viewMode === "canvas" && (
-            <InfiniteCanvasView nodes={nodes} currentNodeId={currentNodeId} onNodeSelect={setCurrentNodeId} />
           )}
           {viewMode === "flip" && (
             <FlipModeView topic={topic} assertions={assertions} />

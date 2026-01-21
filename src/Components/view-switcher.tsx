@@ -1,6 +1,6 @@
 import type React from "react"
 
-import { Focus, Network, StickyNote, GraduationCap } from "lucide-react"
+import { Focus, Network, GraduationCap } from "lucide-react"
 import type { ViewMode } from "./socratic-app"
 
 interface ViewSwitcherProps {
@@ -11,8 +11,7 @@ interface ViewSwitcherProps {
 
 const views: { id: ViewMode; label: string; icon: React.ElementType; description: string }[] = [
   { id: "focus", label: "Focus Card", icon: Focus, description: "One question at a time" },
-  { id: "mindmap", label: "Mind Map", icon: Network, description: "See your thought branches" },
-  { id: "canvas", label: "Canvas", icon: StickyNote, description: "Infinite brainstorm space" },
+  { id: "mindmap", label: "Mind Map", icon: Network, description: "Tree & graph views of your ideas" },
 ]
 
 export function ViewSwitcher({ currentView, onViewChange, canFlip }: ViewSwitcherProps) {
