@@ -197,7 +197,7 @@ export function SocraticApp() {
       // Third: Update consistency and emit milestone feedback (~1.5s after answer)
       setTimeout(() => {
         const oldScore = consistencyScore
-        const newScore = Math.min(100, consistencyScore + 8)
+        const newScore = Math.min(100, consistencyScore + 15)
         setConsistencyScore(newScore)
         
         console.log("📈 Consistency Score:", { oldScore, newScore, milestone: newScore % 10 === 0 })
@@ -205,7 +205,7 @@ export function SocraticApp() {
         if (newScore > oldScore) {
           if (newScore >= 100) {
             console.log("🎯 BREAKTHROUGH: 100% consistency achieved!")
-            FeedbackHelpers.breakthrough("complete understanding of this topic")
+            FeedbackHelpers.breakthrough("🏆 Perfect Consistency! You've achieved complete mastery of this topic!")
           } else if (newScore % 10 === 0 && oldScore % 10 !== 0) {
             // Only fire when crossing 10%, 20%, 30%, etc
             console.log(`📊 Consistency milestone: ${oldScore}% → ${newScore}%`)
@@ -370,6 +370,7 @@ export function SocraticApp() {
               onRequestScaffold={requestScaffold}
               calibrationLevel={calibrationLevel}
               topic={topic}
+              consistencyScore={consistencyScore}
             />
           )}
           {viewMode === "mindmap" && (

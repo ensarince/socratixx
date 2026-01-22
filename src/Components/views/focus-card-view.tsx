@@ -1,7 +1,7 @@
 import type React from "react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
-import { Send, Sparkles, HelpCircle, AlertTriangle, BookOpen, Puzzle } from "lucide-react"
+import { Send, Sparkles, HelpCircle, AlertTriangle, BookOpen, Puzzle, Trophy, Star, X } from "lucide-react"
 import type { ThoughtNode } from "../socratic-app"
 import { FeedbackHelpers } from "../feedback-helpers"
 
@@ -11,6 +11,7 @@ interface FocusCardViewProps {
   onRequestScaffold: () => void
   calibrationLevel: "beginner" | "intermediate" | "advanced"
   topic?: string
+  consistencyScore?: number
 }
 
 const typeLabels = {
@@ -65,12 +66,23 @@ const scaffoldHints = {
   3: { type: "co-construct", text: "Here's a starting phrase: 'It's basically like when...' — can you complete it?" },
 }
 
-export function FocusCardView({ node, onAnswer, onRequestScaffold: requestScaffold, calibrationLevel, topic }: FocusCardViewProps) {
+export function FocusCardView({ node, onAnswer, onRequestScaffold: requestScaffold, calibrationLevel, topic, consistencyScore = 0 }: FocusCardViewProps) {
   const [answer, setAnswer] = useState("")
   const [confidence, setConfidence] = useState(50)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [showCelebration, setShowCelebration] = useState(false)
   const typeInfo = typeLabels[node.type as keyof typeof typeLabels] || typeLabels.root
   const scaffoldLevel = node.scaffoldLevel || 0
+
+  // Show celebration when reaching 100%
+  useEffect(() => {
+    if (consistencyScore >= 100) {
+      setShowCelebration(true)
+      // Auto-hide after 5 seconds
+      const timer = setTimeout(() => setShowCelebration(false), 5000)
+      return () => clearTimeout(timer)
+    }
+  }, [consistencyScore])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -118,7 +130,7 @@ export function FocusCardView({ node, onAnswer, onRequestScaffold: requestScaffo
       }
 
       // Check for AI-generated content
-      try {
+      /* try {
         console.log("🤖 Checking for AI-generated content...")
         const aiResponse = await fetch(
           `${import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api"}/answer/detect-ai`,
@@ -144,7 +156,7 @@ export function FocusCardView({ node, onAnswer, onRequestScaffold: requestScaffo
       } catch (error) {
         console.error("AI detection error:", error)
         // Continue if check fails - don't block on error
-      }
+      } */
 
       // Detect basic gibberish (very simple check)
       const words = answer.trim().split(/\s+/)
@@ -161,6 +173,27 @@ export function FocusCardView({ node, onAnswer, onRequestScaffold: requestScaffo
         FeedbackHelpers.offTopicWarning("Please provide a meaningful answer with actual words and ideas.")
         setIsSubmitting(false)
         return
+      }
+
+      // Detect question repetition (copy-pasted question as answer)
+      const answerLower = answer.toLowerCase().trim()
+      const questionLower = node.question.toLowerCase().trim()
+      
+      // Calculate similarity using a simple word overlap method
+      const answerWords = new Set(answerLower.split(/\W+/).filter(w => w.length > 2))
+      const questionWords = new Set(questionLower.split(/\W+/).filter(w => w.length > 2))
+      
+      if (answerWords.size > 0 && questionWords.size > 0) {
+        const overlap = Array.from(answerWords).filter(w => questionWords.has(w)).length
+        const overlapRatio = overlap / Math.min(answerWords.size, questionWords.size)
+        
+        if (overlapRatio > 0.75) {
+          // Too much overlap with the question itself
+          console.warn("⚠️ Answer appears to be a repetition of the question!")
+          FeedbackHelpers.offTopicWarning("Please don't just repeat the question - share your own thinking instead.")
+          setIsSubmitting(false)
+          return
+        }
       }
 
       // Send to backend for AI quality analysis
@@ -221,6 +254,123 @@ export function FocusCardView({ node, onAnswer, onRequestScaffold: requestScaffo
   return (
     <div className="h-full flex items-center justify-center p-8">
       <div className="w-full max-w-2xl">
+        {/* 100% Consistency Celebration Overlay */}
+        {showCelebration && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.8 }}
+            transition={{ type: "spring", stiffness: 300, damping: 20 }}
+            className="fixed inset-0 flex items-center justify-center z-50 pointer-events-none"
+          >
+            {/* Animated background blur */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            />
+
+            {/* Celebration container */}
+            <motion.div
+              initial={{ scale: 0.5, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ delay: 0.1, type: "spring", stiffness: 300 }}
+              className="relative z-10 flex flex-col items-center gap-4"
+            >
+              {/* Close button */}
+              <motion.button
+                onClick={() => setShowCelebration(false)}
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                className="absolute -top-6 -right-6 p-2 rounded-full bg-white/20 hover:bg-white/30 transition-colors backdrop-blur-sm border border-white/20 pointer-events-auto"
+                title="Close celebration"
+              >
+                <X className="w-5 h-5 text-white" />
+              </motion.button>
+
+              {/* Animated trophy */}
+              <motion.div
+                animate={{
+                  y: [0, -20, 0],
+                  rotate: [0, 5, -5, 0],
+                }}
+                transition={{
+                  duration: 0.8,
+                  repeat: Infinity,
+                  repeatDelay: 1,
+                }}
+              >
+                <Trophy className="w-24 h-24 text-yellow-400 drop-shadow-lg" />
+              </motion.div>
+
+              {/* Main text */}
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+                className="text-center"
+              >
+                <h1 className="text-4xl md:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 via-purple-400 to-pink-400 drop-shadow-lg mb-2">
+                  Perfect Consistency!
+                </h1>
+                <p className="text-lg text-white font-semibold drop-shadow-md">
+                  You've achieved complete mastery
+                </p>
+              </motion.div>
+
+              {/* Animated stars */}
+              <div className="flex gap-3 justify-center">
+                {[0, 1, 2].map((i) => (
+                  <motion.div
+                    key={i}
+                    animate={{
+                      scale: [1, 1.4, 1],
+                      opacity: [0.5, 1, 0.5],
+                    }}
+                    transition={{
+                      duration: 1,
+                      repeat: Infinity,
+                      delay: i * 0.2,
+                    }}
+                  >
+                    <Star className="w-8 h-8 text-yellow-300 fill-yellow-300 drop-shadow-lg" />
+                  </motion.div>
+                ))}
+              </div>
+
+              {/* Confetti particles */}
+              <div className="absolute inset-0 pointer-events-none overflow-hidden">
+                {[...Array(12)].map((_, i) => (
+                  <motion.div
+                    key={i}
+                    initial={{
+                      x: 0,
+                      y: 0,
+                      opacity: 1,
+                    }}
+                    animate={{
+                      x: (Math.random() - 0.5) * 200,
+                      y: (Math.random() - 0.5) * 200 - 100,
+                      opacity: 0,
+                    }}
+                    transition={{
+                      duration: 2,
+                      delay: Math.random() * 0.3,
+                      ease: "easeOut",
+                    }}
+                    className="absolute left-1/2 top-1/2"
+                  >
+                    <div className="w-2 h-2 rounded-full" style={{
+                      background: ["#fbbf24", "#a78bfa", "#f472b6", "#60a5fa"][Math.floor(Math.random() * 4)]
+                    }} />
+                  </motion.div>
+                ))}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+
         <div className="text-center mb-6">
           <span
             className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium ${typeInfo.color}`}

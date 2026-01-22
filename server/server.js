@@ -13,35 +13,10 @@ const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
 });
 
-// Simple language detection helper - safe fallback if module fails
-let detectLanguage = null;
-async function initDetectLanguage() {
-    try {
-        const module = await import('langdetect');
-        detectLanguage = module.detect;
-    } catch (e) {
-        console.warn("langdetect not available, using fallback");
-        detectLanguage = () => ['en'];
-    }
-}
-
-await initDetectLanguage();
-
 // Middleware
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
-
-// Simple language detection helper
-function detectLanguageFromText(text) {
-    if (!text || text.trim().length === 0) return 'en';
-    try {
-        const detected = detectLanguage(text);
-        return Array.isArray(detected) && detected.length > 0 ? detected[0] : 'en';
-    } catch (error) {
-        return 'en';
-    }
-}
 
 // ============================================
 // STATE MANAGEMENT FOR SOCRATIC REASONING
@@ -49,7 +24,6 @@ function detectLanguageFromText(text) {
 
 let socraticState = {
     topic: null,
-    detectedLanguage: 'en', 
     userAnswers: [],
     thoughtProcess: {
         nodes: [],
@@ -142,15 +116,6 @@ QUESTIONING HIERARCHY:
 - Level 4: Challenge questions - "What if...?"
 - Level 5: Assumption questions - "Are you assuming...?"`;
 
-// Generate system prompt with language instruction
-function getSystemPromptWithLanguage(detectedLanguage = 'en') {
-    let instruction = '';
-    if (detectedLanguage !== 'en') {
-        instruction = `\n\nIMPORTANT: Respond ENTIRELY in the user's language. Detect from context that they are using a non-English language and respond in that same language. Do NOT respond in English.`;
-    }
-    return SOCRATIC_SYSTEM_PROMPT + instruction;
-}
-
 const QUESTION_TYPES = {
     feynman: {
         name: "Feynman Simplification",
@@ -227,15 +192,11 @@ const CALIBRATION_TEMPLATES = {
 // ============================================
 
 function initializeSession(topic) {
-    // Detect language from topic
-    const detectedLanguage = detectLanguageFromText(topic);
-    
     // Generate solution path for this topic
     const solutionPath = SOLUTION_PATHS.default;
 
     socraticState = {
         topic,
-        detectedLanguage,
         userAnswers: [],
         thoughtProcess: {
             nodes: [],
@@ -495,7 +456,7 @@ function detectContradiction(newStatement, previousStatements) {
 
 function updateConsistencyScore(resolvedContradiction = false) {
     if (resolvedContradiction) {
-        socraticState.consistencyScore = Math.min(100, socraticState.consistencyScore + 10);
+        socraticState.consistencyScore = Math.min(100, socraticState.consistencyScore + 20);
     } else {
         socraticState.consistencyScore = Math.max(0, socraticState.consistencyScore - 5);
     }
@@ -621,7 +582,7 @@ Just the question, nothing else.`;
             messages: [
                 {
                     role: "system",
-                    content: getSystemPromptWithLanguage(socraticState.detectedLanguage)
+                    content: SOCRATIC_SYSTEM_PROMPT
                 },
                 {
                     role: "user",
@@ -695,7 +656,7 @@ Just the question, nothing else.`;
             messages: [
                 {
                     role: "system",
-                    content: getSystemPromptWithLanguage(socraticState.detectedLanguage)
+                    content: SOCRATIC_SYSTEM_PROMPT
                 },
                 {
                     role: "user",
@@ -804,7 +765,7 @@ Just the question.`;
             messages: [
                 {
                     role: "system",
-                    content: getSystemPromptWithLanguage(socraticState.detectedLanguage)
+                    content: SOCRATIC_SYSTEM_PROMPT
                 },
                 {
                     role: "user",
@@ -874,7 +835,7 @@ Be encouraging and maintain curiosity.`;
             messages: [
                 {
                     role: "system",
-                    content: getSystemPromptWithLanguage(socraticState.detectedLanguage)
+                    content: SOCRATIC_SYSTEM_PROMPT
                 },
                 {
                     role: "user",
