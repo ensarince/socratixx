@@ -2,22 +2,35 @@ import { config } from "dotenv";
 import { OpenAI } from 'openai';
 import cors from "cors";
 import express from "express";
-import { detect as detectLanguage } from 'langdetect';
 
 config();
 
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Middleware
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
-
 // Initialize OpenAI
 const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
 });
+
+// Simple language detection helper - safe fallback if module fails
+let detectLanguage = null;
+async function initDetectLanguage() {
+    try {
+        const module = await import('langdetect');
+        detectLanguage = module.detect;
+    } catch (e) {
+        console.warn("langdetect not available, using fallback");
+        detectLanguage = () => ['en'];
+    }
+}
+
+await initDetectLanguage();
+
+// Middleware
+app.use(cors());
+app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
 
 // Simple language detection helper
 function detectLanguageFromText(text) {
@@ -1562,6 +1575,14 @@ Determine their knowledge level and provide analysis. Respond with ONLY valid JS
 app.post("/api/session/reset", (req, res) => {
     initializeSession(null);
     res.json({ message: "Session reset successfully" });
+});
+
+// ============================================
+// HEALTH CHECK
+// ============================================
+
+app.get("/health", (req, res) => {
+    res.json({ status: "ok", message: "hello world" });
 });
 
 // ============================================
